@@ -42,7 +42,12 @@ ga_lua_component::ga_lua_component(ga_entity* ent, const char* path) : ga_compon
 	}
 
 	// now add the function to the global table
-	lua_pcall(_lua, 0, 0, 0);
+	status = lua_pcall(_lua, 0, 0, 0);
+	if (status)
+	{
+		std::cerr << "Error loading global functions: " << lua_tostring(_lua, -1);
+		lua_close(_lua);
+	}
 }
 
 ga_lua_component::~ga_lua_component()
@@ -68,7 +73,7 @@ void ga_lua_component::update(ga_frame_params* params)
 
 	if (status)
 	{
-		std::cerr << "Error in function 'update': " << lua_tostring(_lua, -1) << std::endl;
+		std::cerr << "Error in function 'update': " << lua_tostring(_lua, -1);
 	}
 }
 
@@ -84,10 +89,10 @@ int ga_lua_component::frame_params_get_input_left(lua_State* state)
 	}
 
 	// grab frame_params 
-	ga_frame_params* params = (ga_frame_params*) lua_touserdata(state, 1);
+	ga_frame_params** params = (ga_frame_params**) lua_touserdata(state, 1);
 
 	// return the value of button pres "j"
-	lua_pushboolean(state, params->_button_mask | k_button_j);
+	lua_pushboolean(state, (*params)->_button_mask | k_button_j);
 
 	// and tell Lua we have one return value
 	return 1;
@@ -105,10 +110,10 @@ int ga_lua_component::frame_params_get_input_right(lua_State* state)
 	}
 
 	// grab frame_params
-	ga_frame_params* params = (ga_frame_params*) lua_touserdata(state, 1);
+	ga_frame_params** params = (ga_frame_params**) lua_touserdata(state, 1);
 
 	// return the value of button pres "j"
-	lua_pushboolean(state, params->_button_mask | k_button_l);
+	lua_pushboolean(state, (*params)->_button_mask | k_button_l);
 
 	// and tell Lua we have one return value
 	return 1;
@@ -126,11 +131,11 @@ int ga_lua_component::component_get_entity(lua_State* state)
 	}
 
 	// grab the component
-	ga_component* component = (ga_component*) lua_touserdata(state, 1);
+	ga_component** component = (ga_component**) lua_touserdata(state, 1);
 
 	// give lua a pointer to the entity
 	ga_entity** ent = (ga_entity**) lua_newuserdata(state, sizeof(ga_entity*));
-	*ent = component->get_entity();
+	*ent = (*component)->get_entity();
 
 	return 1;
 }
@@ -147,7 +152,7 @@ int ga_lua_component::entity_translate(lua_State* state)
 	}
 
 	// first element should be the entity pointer
-	ga_entity* entity = (ga_entity*) lua_touserdata(state, 1);
+	ga_entity** entity = (ga_entity**) lua_touserdata(state, 1);
 
 	// x, y, and z are the next 3 args
 	float x = luaL_checknumber(state, 2);
@@ -156,7 +161,7 @@ int ga_lua_component::entity_translate(lua_State* state)
 
 	// actually do the translate
 	ga_vec3f translate_vector = { x, y, z };
-	entity->translate(translate_vector);
+	(*entity)->translate(translate_vector);
 
 	// no return values
 	return 0;
