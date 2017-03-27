@@ -40,6 +40,9 @@ ga_lua_component::ga_lua_component(ga_entity* ent, const char* path) : ga_compon
 		std::cerr << "Failed to load script " << path << ": " << lua_tostring(_lua, -1);
 		lua_close(_lua);
 	}
+
+	// now add the function to the global table
+	lua_pcall(_lua, 0, 0, 0);
 }
 
 ga_lua_component::~ga_lua_component()
