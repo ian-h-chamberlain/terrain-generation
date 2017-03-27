@@ -91,8 +91,8 @@ int ga_lua_component::frame_params_get_input_left(lua_State* state)
 	// grab frame_params 
 	ga_frame_params** params = (ga_frame_params**) lua_touserdata(state, 1);
 
-	// return the value of button pres "j"
-	lua_pushboolean(state, (*params)->_button_mask | k_button_j);
+	// return the value of button press "J"
+	lua_pushboolean(state, (*params)->_button_mask & k_button_j);
 
 	// and tell Lua we have one return value
 	return 1;
@@ -112,8 +112,8 @@ int ga_lua_component::frame_params_get_input_right(lua_State* state)
 	// grab frame_params
 	ga_frame_params** params = (ga_frame_params**) lua_touserdata(state, 1);
 
-	// return the value of button pres "j"
-	lua_pushboolean(state, (*params)->_button_mask | k_button_l);
+	// return the value of button press "L"
+	lua_pushboolean(state, (*params)->_button_mask & k_button_l);
 
 	// and tell Lua we have one return value
 	return 1;
