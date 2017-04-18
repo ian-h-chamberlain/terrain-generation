@@ -10,7 +10,7 @@ public:
 	virtual void update(struct ga_frame_params* params) override;
 
 private:
-	class ga_material* _material;
+	class ga_directional_light_material* _material;
 	uint32_t _vao;
 	uint32_t _vbos[4];
 	uint32_t _index_count;

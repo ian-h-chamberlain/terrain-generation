@@ -17,9 +17,9 @@
 ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_file) : ga_component(ent)
 {
 	// use unlit material for simplicity
-	_material = new ga_constant_color_material();
+	_material = new ga_directional_light_material();
 	_material->init();
-	_material->set_color({0.6f, 0.6f, 0.6f});
+	_material->set_color({1.0f, 1.0f, 1.0f});
 
 	// load the input file
 	extern char g_root_path[256];

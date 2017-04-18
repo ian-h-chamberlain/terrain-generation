@@ -74,3 +74,27 @@ private:
 	ga_program* _program;
 	ga_vec3f _color;
 };
+
+/*
+** Simple directional light material with a constant color
+*/
+class ga_directional_light_material : public ga_material
+{
+public:
+	ga_directional_light_material() { };
+	~ga_directional_light_material() { };
+
+	virtual bool init() override;
+
+	virtual void bind(const ga_mat4f& view_proj, const ga_mat4f& transform) override;
+
+	virtual void set_color(const ga_vec3f& color) override { _color = color; }
+	virtual void set_direction(const ga_vec3f& direction) { _light_direction = direction; };
+
+private:
+	ga_vec3f _light_direction;
+	ga_shader* _vs;
+	ga_shader* _fs;
+	ga_program* _program;
+	ga_vec3f _color;
+};
