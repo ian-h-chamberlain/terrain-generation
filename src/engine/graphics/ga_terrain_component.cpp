@@ -4,6 +4,10 @@
 ** 
 ** Terrain generator component
 */
+#include <fstream>
+#include <cassert>
+#include <iostream>
+#include <cstdlib>
 
 #include "ga_terrain_component.h"
 #include "ga_material.h"
@@ -17,22 +21,111 @@ ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_fil
 	_material->init();
 	_material->set_color({0.6f, 0.6f, 0.6f});
 
-	// TODO actually generate the terrain
-	static GLfloat vertices[] = {
-		-10.0, -1.0, -10.0,
-		 10.0, -1.0, -10.0,
-		 10.0, -1.0,  10.0,
-		-10.0, -1.0,  10.0,
-	};
+	// load the input file
+	extern char g_root_path[256];
+	std::string fullpath = g_root_path;
+	fullpath += param_file;
 
-	static GLushort indices[] = {
-		0,  1,  2,
-		2,  3,  0,
-	};
+	std::ifstream file(fullpath);
 
-	// setup VBOs for drawing
-	_index_count = uint32_t(sizeof(indices) / sizeof(*indices));
+	assert(file.is_open());
 
+	// now assign parameters based on the input
+	std::string cmd;
+	while (file.peek() != EOF)
+	{
+		file >> cmd;
+		if (cmd == "size")
+		{
+			file >> _size;
+			// for convenience use 2^x + 1
+			_size = std::pow(2, _size) + 1;
+		}
+		else if (cmd == "height")
+		{
+			file >> _height;
+		}
+		else {
+			// Unknown input, error
+			std::cerr << "Error parsing terrain file: '" << cmd <<
+				"' not recognized" << std::endl;
+			assert(false);
+		}
+	}
+
+	// and finally, generate a heightmap from our parameters
+	_points = new float[_size * _size];
+	generate_terrain();
+
+	// use the newly generated _points to setup vbos for drawing
+	setup_vbos();
+
+	// possible implementation for infinite: keep a list of neighbors and generate them as needed
+}
+
+void ga_terrain_component::generate_terrain()
+{
+	// initialize all points to 0.5 height initially
+	for (int i = 0; i < _size; i++)
+	{
+		for (int j = 0; j < _size; j++)
+		{
+			float h = (float)(std::rand() % _height) / (float)_height;
+			set_point(i, j, h);
+		}
+	}
+}
+
+void ga_terrain_component::setup_vbos()
+{
+	// setup indices and vertices for drawing
+	int vertex_count = 3 * _size * _size;
+	GLfloat* vertices = new GLfloat[vertex_count];
+
+	std::cout << "vertices " << vertex_count / 3 << std::endl;
+	
+	// calculate x, y, z from _points data
+	for (int i = 0; i < _size; i++)
+	{
+		for (int j = 0; j < _size; j++)
+		{
+			float x = (float) i - (_size / 2.0f);
+			float y = get_point(i, j) * _height - _height / 2.0f;
+			float z = (float) j - (_size / 2.0f);
+
+			vertices[3 * (i + _size * j)] = x;
+			vertices[3 * (i + _size * j) + 1] = y;
+			vertices[3 * (i + _size * j) + 2] = z;
+		}
+	}
+
+	// assign indices based on position in vertex array
+	_index_count = 6 * (_size - 1) * (_size - 1);
+	GLushort* indices = new GLushort[_index_count];
+	std::cout << "indices " << _index_count << std::endl;
+
+	int x = 0;
+	int y = 0;
+	for (int i = 0; i < _index_count; i += 6)
+	{
+		// assign one quad at a time
+		indices[i] = x + _size * y;
+		indices[i + 1] = x + 1 + _size * y;
+		indices[i + 2] = x + 1 + _size * (y + 1);
+		indices[i + 3] = x + 1 + _size * (y + 1);
+		indices[i + 4] = x + _size * (y + 1);
+		indices[i + 5] = x + _size * y;
+
+		// advance coordinates to keep up
+		x = (x + 1);
+		if (x >= _size - 1)
+		{
+			x = 0;
+			y++;
+		}
+	}
+
+	// and use that data for the arrays
 	glGenVertexArrays(1, &_vao);
 	glBindVertexArray(_vao);
 
@@ -40,16 +133,18 @@ ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_fil
 	glGenBuffers(2, _vbos);
 
 	glBindBuffer(GL_ARRAY_BUFFER, _vbos[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * vertex_count, vertices, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(0);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _vbos[1]);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort) * _index_count, indices, GL_STATIC_DRAW);
 
 	glBindVertexArray(0);
 
-	// possible implementation for infinite: keep a list of neighbors and generate them as needed
+	// clean up our temporary arrays
+	delete[] indices;
+	delete[] vertices;
 }
 
 ga_terrain_component::~ga_terrain_component()
@@ -59,6 +154,20 @@ ga_terrain_component::~ga_terrain_component()
 	glDeleteVertexArrays(1, &_vao);
 
 	delete _material;
+	delete[] _points;
+}
+
+// getter/setter for _points
+float ga_terrain_component::get_point(int x, int y)
+{
+	assert(y * _size + x < _size * _size);
+	return _points[y * _size + x];
+}
+
+void ga_terrain_component::set_point(int x, int y, float height)
+{
+	assert(y * _size + x < _size * _size);
+	_points[y * _size + x] = height;
 }
 
 void ga_terrain_component::update(ga_frame_params * params)
