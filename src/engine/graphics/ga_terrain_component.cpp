@@ -7,7 +7,8 @@
 #include <fstream>
 #include <cassert>
 #include <iostream>
-#include <cstdlib>
+#include <random>
+#include <ctime>
 
 #include "ga_terrain_component.h"
 #include "ga_material.h"
@@ -19,7 +20,7 @@ ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_fil
 	// use unlit material for simplicity
 	_material = new ga_directional_light_material();
 	_material->init();
-	_material->set_color({1.0f, 1.0f, 1.0f});
+	_material->set_color({0.3f, 0.3f, 0.3f});
 
 	// load the input file
 	extern char g_root_path[256];
@@ -53,6 +54,9 @@ ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_fil
 		}
 	}
 
+	// seed the random number generator
+	std::srand((unsigned int) std::time(NULL));
+
 	// and finally, generate a heightmap from our parameters
 	_points = new float[_size * _size];
 	generate_terrain();
@@ -65,15 +69,76 @@ ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_fil
 
 void ga_terrain_component::generate_terrain()
 {
-	// initialize all points to 0.5 height initially
+	// first initialize all the points to halfway
+
 	for (int i = 0; i < _size; i++)
 	{
 		for (int j = 0; j < _size; j++)
 		{
-			float h = (float)(std::rand() % _height) / (float)_height;
-			set_point(i, j, h);
+			float r = (float)std::rand() / (float)RAND_MAX;
+			set_point(i, j, 0.5f);
 		}
 	}
+
+	// recursively modify the terrain randomly
+	subdivide_terrain(_size - 1);
+}
+
+void ga_terrain_component::subdivide_terrain(int size) {
+	int x, y;
+	int half = size / 2;
+
+	// base case for recursive division
+	if (half < 1)
+		return;
+
+	// first subdivide by squares
+	for (y = half; y < _size - 2; y += size)
+	{
+		for (x = half; x < _size - 2; x += size)
+		{
+			square_offset(x, y, half);
+		}
+	}
+
+	// then by diamonds
+	for (y = 0; y <= _size - 2; y += half)
+	{
+		for (x = (y + half) % size; x <= _size - 2; x += size)
+		{
+			diamond_offset(x, y, half);
+		}
+	}
+
+	// finally, the recursive step
+	subdivide_terrain(half);
+}
+
+void ga_terrain_component::square_offset(int x, int y, int size)
+{
+	// first get the average of the square points
+	float avg = get_point(x - size, y - size) +
+		get_point(x + size, y - size) +
+		get_point(x - size, y + size) +
+		get_point(x + size, y + size);
+
+	avg /= 4.0f;
+
+	float offset = (float)(std::rand()) / (float) RAND_MAX - 0.5f;
+	set_point(x, y, avg + offset);
+}
+
+void ga_terrain_component::diamond_offset(int x, int y, int size)
+{
+	float avg = get_point(x, y - size) +
+		get_point(x - size, y) +
+		get_point(x + size, y) +
+		get_point(x, y + size);
+
+	avg /= 4.0f;
+
+	float offset = (float) (std::rand()) / (float) RAND_MAX - 0.5f;
+	set_point(x, y, avg + offset);
 }
 
 void ga_terrain_component::setup_vbos()
@@ -160,8 +225,10 @@ ga_terrain_component::~ga_terrain_component()
 // getter/setter for _points
 float ga_terrain_component::get_point(int x, int y)
 {
-	assert(y * _size + x < _size * _size);
-	return _points[y * _size + x];
+	if (y * _size + x < _size * _size)
+		return _points[y * _size + x];
+	else
+		return 0.5f;
 }
 
 void ga_terrain_component::set_point(int x, int y, float height)

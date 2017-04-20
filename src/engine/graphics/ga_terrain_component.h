@@ -1,5 +1,6 @@
 
 #include "entity/ga_component.h"
+#include <random>
 
 class ga_terrain_component : public ga_component
 {
@@ -26,5 +27,11 @@ private:
 
 	// and methods to generate terrain / vbo objects
 	void generate_terrain();
+	void subdivide_terrain(int size);
+
+	// subdivision algorithms
+	void square_offset(int x, int y, int size);
+	void diamond_offset(int x, int y, int size);
+
 	void setup_vbos();
 };
