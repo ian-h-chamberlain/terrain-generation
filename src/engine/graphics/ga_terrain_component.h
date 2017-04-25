@@ -27,11 +27,16 @@ private:
 
 	// and methods to generate terrain / vbo objects
 	void generate_terrain();
-	void subdivide_terrain(int size);
 
-	// subdivision algorithms
-	void square_offset(int x, int y, int size);
-	void diamond_offset(int x, int y, int size);
+	// helper functions for Perlin noise implementation
+	static float noise(float x, float y, float z);
+	static float fade(float t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+	static float lerp(float t, float a, float b) { return a + t * (b - a); }
+	static float grad(int hash, float x, float y, float z);
+
+	// permutation vector getters for Perlin noise
+	static const int get_p(int i);
+	static const int get_permutation (int i);
 
 	void setup_vbos();
 };
