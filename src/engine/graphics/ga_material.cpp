@@ -142,13 +142,13 @@ void ga_constant_color_material::bind(const ga_mat4f& view_proj, const ga_mat4f&
 	glDepthMask(GL_TRUE);
 }
 
-bool ga_directional_light_material::init()
+bool ga_wireframe_material::init()
 {
 	std::string source_vs;
-	load_shader("data/shaders/ga_directional_light_vert.glsl", source_vs);
+	load_shader("data/shaders/ga_wireframe_vert.glsl", source_vs);
 
 	std::string source_fs;
-	load_shader("data/shaders/ga_directional_light_frag.glsl", source_fs);
+	load_shader("data/shaders/ga_wireframe_frag.glsl", source_fs);
 
 	_vs = new ga_shader(source_vs.c_str(), GL_VERTEX_SHADER);
 	if (!_vs->compile())
@@ -173,16 +173,18 @@ bool ga_directional_light_material::init()
 	return true;
 }
 
-void ga_directional_light_material::bind(const ga_mat4f& view_proj, const ga_mat4f& transform)
+void ga_wireframe_material::bind(const ga_mat4f& view_proj, const ga_mat4f& transform)
 {
 	ga_uniform mvp_uniform = _program->get_uniform("u_mvp");
 	ga_uniform projection = _program->get_uniform("u_proj");
 	ga_uniform color_uniform = _program->get_uniform("u_color");
+	ga_uniform width_uniform = _program->get_uniform("u_width");
 
 	_program->use();
 
 	mvp_uniform.set(transform * view_proj);
 	color_uniform.set(_color);
+	width_uniform.set(ga_vec3f { _width, _width, 1.0f });
 
 	glDisable(GL_BLEND);
 	glEnable(GL_DEPTH_TEST);

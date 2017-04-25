@@ -17,6 +17,7 @@
 #include "entity/ga_entity.h"
 
 #include "graphics/ga_terrain_component.h"
+#include "graphics/ga_cube_component.h"
 #include "graphics/ga_program.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -50,10 +51,16 @@ int main(int argc, const char** argv)
 	rotation.make_axis_angle(ga_vec3f::x_vector(), ga_degrees_to_radians(15.0f));
 	camera->rotate(rotation);
 
-	// Create an entity whose movement is driven by Lua script.
+	// Create an entity that procedurally generates terrain around the camera
 	ga_entity terrain;
-	ga_terrain_component terrain_model(&terrain, "data/terrain/basic_terrain.txt");
+	ga_terrain_component terrain_model(&terrain, "data/terrain/basic_terrain.txt", camera);
+	ga_entity terrain2;
+	terrain2.translate({ 20.0f, 0.0f });
+	ga_terrain_component terrain_model2(&terrain2, "data/terrain/basic_terrain.txt", camera);
+
+
 	sim->add_entity(&terrain);
+	sim->add_entity(&terrain2);
 
 	// Main loop:
 	while (true)

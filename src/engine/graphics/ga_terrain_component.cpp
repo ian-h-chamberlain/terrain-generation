@@ -15,12 +15,30 @@
 
 #include "entity/ga_entity.h"
 
-ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_file) : ga_component(ent)
+ga_terrain_component::ga_terrain_component( ga_entity* ent, const char* param_file,
+											ga_camera* cam) : ga_component(ent)
 {
 	// use unlit material for simplicity
-	_material = new ga_directional_light_material();
-	_material->init();
-	_material->set_color({0.3f, 0.3f, 0.3f});
+	if (_material == NULL)
+	{
+		_material = new ga_wireframe_material();
+		_material->init();
+		_material->set_color({ 0.3f, 0.3f, 0.3f });
+	}
+
+	// default start at position (0, 0);
+	ga_vec3f pos = ent->get_transform().get_translation();
+	_position = { pos.x, pos.z };
+	_camera = cam;
+
+	_param_file = param_file;
+
+	// initialize neighbors data to null
+	_parent = NULL;
+	for (int i = 0; i < 4; i++)
+	{
+		_neighbors[i] = NULL;
+	}
 
 	// load the input file
 	extern char g_root_path[256];
@@ -36,15 +54,23 @@ ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_fil
 	while (file.peek() != EOF)
 	{
 		file >> cmd;
-		if (cmd == "size")
+		if (cmd == "detail")
 		{
 			file >> _size;
 			// for convenience use 2^x + 1
 			_size = std::pow(2, _size) + 1;
 		}
+		else if (cmd == "width")
+		{
+			file >> _width;
+		}
 		else if (cmd == "height")
 		{
 			file >> _height;
+		}
+		else if (cmd == "radius")
+		{
+			file >> _radius;
 		}
 		else
 		{
@@ -55,10 +81,8 @@ ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_fil
 		}
 	}
 
-	// seed the random number generator
-	std::srand((unsigned int) std::time(NULL));
-
-	// setup Perlin noise implementation
+	// tell the material about our width
+	_material->set_width(_width / (float) _size);
 
 	// and finally, generate a heightmap from our parameters
 	_points = new float[_size * _size];
@@ -72,13 +96,14 @@ ga_terrain_component::ga_terrain_component(ga_entity* ent, const char* param_fil
 
 void ga_terrain_component::generate_terrain()
 {
-	// initialize points pseudarandomly with Perlin noise
+	// initialize points pseudorandomly with Perlin noise
 	for (int i = 0; i < _size; i++)
 	{
 		for (int j = 0; j < _size; j++)
 		{
-			float x = (float) i - (_size / 2.0f);
-			float y = (float) j - (_size / 2.0f);
+			ga_vec2f pos = point_to_position(i, j) + _position;
+			float x = pos.x;
+			float y = pos.y;
 
 			set_point(i, j, noise(x, y, 0.5f));
 		}
@@ -163,18 +188,18 @@ void ga_terrain_component::setup_vbos()
 
 	std::cout << "vertices " << vertex_count / 3 << std::endl;
 	
+	std::cout << "position: (" << _position.x << ", " << _position.y << ")" << std::endl;
 	// calculate x, y, z from _points data
 	for (int i = 0; i < _size; i++)
 	{
 		for (int j = 0; j < _size; j++)
 		{
-			float x = (float) i - (_size / 2.0f);
+			ga_vec2f pos = point_to_position(i, j);// +_position;
 			float y = get_point(i, j) * _height - _height / 2.0f;
-			float z = (float) j - (_size / 2.0f);
 
-			vertices[3 * (i + _size * j)] = x;
+			vertices[3 * (i + _size * j)] = pos.x;
 			vertices[3 * (i + _size * j) + 1] = y;
-			vertices[3 * (i + _size * j) + 2] = z;
+			vertices[3 * (i + _size * j) + 2] = pos.y;
 		}
 	}
 
@@ -204,6 +229,7 @@ void ga_terrain_component::setup_vbos()
 		}
 	}
 
+
 	// and use that data for the arrays
 	glGenVertexArrays(1, &_vao);
 	glBindVertexArray(_vao);
@@ -232,8 +258,22 @@ ga_terrain_component::~ga_terrain_component()
 	glDeleteBuffers(2, _vbos);
 	glDeleteVertexArrays(1, &_vao);
 
-	delete _material;
 	delete[] _points;
+
+	if (_parent == NULL)
+	{
+		// NOTE need to delete material eventually
+		// delete _material;
+	}
+	// delete neighbor components
+	for (int i = 0; i < 4; i++)
+	{
+		if (_neighbors[i] != NULL && _neighbors[i] != _parent)
+		{
+			delete _neighbors[i];
+			_neighbors[i] = NULL;
+		}
+	}
 }
 
 // getter/setter for _points
@@ -251,8 +291,52 @@ void ga_terrain_component::set_point(int x, int y, float height)
 	_points[y * _size + x] = height;
 }
 
+ga_vec2f ga_terrain_component::point_to_position(int x, int y)
+{
+	ga_vec2f pos;
+	pos.x = _width * ((float) x / (float) (_size - 1) - 0.5f);
+	pos.y = _width * ((float) y / (float) (_size - 1) - 0.5f);
+
+	return pos;
+}
+
 void ga_terrain_component::update(ga_frame_params * params)
 {
+	// get the camera position to determine whether we need to generate new chunks
+	ga_vec3f eye_position = _camera->get_transform().get_translation();
+
+	// create terrain components surrounding this one
+	if (eye_position.x < _position.x + (_width / 2.0f) &&
+		eye_position.x > _position.x - (_width / 2.0f) &&
+		eye_position.z < _position.y + (_width / 2.0f) &&
+		eye_position.z > _position.y - (_width / 2.0f))
+	{
+		if (_neighbors[0] == NULL) {
+			_neighbors[0] = new ga_terrain_component(get_entity(), _param_file, _camera);
+			_neighbors[0]->_position.x -= _width;
+			_neighbors[0]->_parent = this;
+			_neighbors[0]->_neighbors[1] = this;
+		}
+		if (_neighbors[1] == NULL) {
+			_neighbors[1] = new ga_terrain_component(get_entity(), _param_file, _camera);
+			_neighbors[1]->_position.x += _width;
+			_neighbors[1]->_parent = this;
+			_neighbors[1]->_neighbors[0] = this;
+		}
+		if (_neighbors[2] == NULL) {
+			_neighbors[2] = new ga_terrain_component(get_entity(), _param_file, _camera);
+			_neighbors[2]->_position.y -= _width;
+			_neighbors[2]->_parent = this;
+			_neighbors[2]->_neighbors[3] = this;
+		}
+		if (_neighbors[3] == NULL) {
+			_neighbors[3] = new ga_terrain_component(get_entity(), _param_file, _camera);
+			_neighbors[3]->_position.y += _width;
+			_neighbors[3]->_parent = this;
+			_neighbors[3]->_neighbors[2] = this;
+		}
+	}
+
 	// draw the terrain each frame
 	ga_static_drawcall draw;
 	draw._name = "ga_terrain_component";
@@ -265,6 +349,7 @@ void ga_terrain_component::update(ga_frame_params * params)
 	while (params->_static_drawcall_lock.test_and_set(std::memory_order_acquire)) {}
 	params->_static_drawcalls.push_back(draw);
 	params->_static_drawcall_lock.clear(std::memory_order_release);
-	
-	// TODO generate further terrain based on camera position
 }
+
+// initialize the static material to null
+ga_wireframe_material* ga_terrain_component::_material = NULL;

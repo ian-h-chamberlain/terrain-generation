@@ -1,6 +1,7 @@
 #version 400
 
 uniform vec3 u_color;
+uniform vec3 u_width;
 
 in vec3 world_position;
 
@@ -9,10 +10,11 @@ void main(void)
 	vec3 c = u_color;
 	float grid_thickness = 0.03;
 
-	bool on_grid = fract (world_position.x * 2.0) < grid_thickness ||
-		fract (world_position.z * 2.0) < grid_thickness ||
-		fract ((world_position.x - world_position.z) * 2.0) < grid_thickness;
+	bool on_grid = fract (world_position.x * 2.0 / u_width.x) < grid_thickness ||
+		fract (world_position.z * 2.0 / u_width.x) < grid_thickness ||
+		fract ((world_position.x - world_position.z) * 2.0 / u_width.x) < grid_thickness;
 
+	// show a different color based on height for gridlines
 	if (on_grid)
 	{
 		float h = clamp (world_position.y + 5.0, 0.0, 10.0) / 10.0;
