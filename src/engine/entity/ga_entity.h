@@ -27,6 +27,8 @@ public:
 
 	void add_component(class ga_component* comp);
 
+	void dynamic_add_component(class ga_component* comp);
+
 	void update(struct ga_frame_params* params);
 	void late_update(struct ga_frame_params* params);
 
@@ -38,5 +40,6 @@ public:
 
 private:
 	std::vector<class ga_component*> _components;
+	std::vector<class ga_component*> _to_add_dynamic;
 	ga_mat4f _transform;
 };

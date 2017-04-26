@@ -54,13 +54,8 @@ int main(int argc, const char** argv)
 	// Create an entity that procedurally generates terrain around the camera
 	ga_entity terrain;
 	ga_terrain_component terrain_model(&terrain, "data/terrain/basic_terrain.txt", camera);
-	ga_entity terrain2;
-	terrain2.translate({ 20.0f, 0.0f });
-	ga_terrain_component terrain_model2(&terrain2, "data/terrain/basic_terrain.txt", camera);
-
 
 	sim->add_entity(&terrain);
-	sim->add_entity(&terrain2);
 
 	// Main loop:
 	while (true)

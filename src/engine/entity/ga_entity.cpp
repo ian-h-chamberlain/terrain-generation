@@ -24,8 +24,20 @@ void ga_entity::add_component(ga_component* comp)
 	_components.push_back(comp);
 }
 
+void ga_entity::dynamic_add_component(ga_component* comp)
+{
+	_to_add_dynamic.push_back(comp);
+}
+
 void ga_entity::update(ga_frame_params* params)
 {
+	// include components added in the last frame
+	for (auto& c : _to_add_dynamic)
+	{
+		_components.push_back(c);
+	}
+	_to_add_dynamic.clear();
+
 	for (auto& c : _components)
 	{
 		c->update(params);

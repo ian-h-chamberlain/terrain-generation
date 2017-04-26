@@ -7,16 +7,21 @@
 class ga_terrain_component : public ga_component
 {
 public:
-	ga_terrain_component(class ga_entity* ent, const char* param_file, class ga_camera* cam);
+	ga_terrain_component(class ga_entity* ent, const char* param_file, class ga_camera* cam, bool dynamic = false);
 	virtual ~ga_terrain_component();
 
+	void init();
+
 	virtual void update(struct ga_frame_params* params) override;
+	virtual void late_update(struct ga_frame_params* params) override;
 
 private:
 	static class ga_wireframe_material* _material;
-	uint32_t _vao;
-	uint32_t _vbos[4];
-	uint32_t _index_count;
+
+	// data and helper for actually drawing the terrain
+	void setup_vertices();
+	std::vector<ga_vec3f> _vertices;
+	std::vector<uint16_t> _indices;
 
 	// a reference to the player object so we can dynamically generate terrain
 	ga_camera* _camera;
@@ -51,6 +56,4 @@ private:
 	// permutation vector getters for Perlin noise
 	static const int get_p(int i);
 	static const int get_permutation (int i);
-
-	void setup_vbos();
 };

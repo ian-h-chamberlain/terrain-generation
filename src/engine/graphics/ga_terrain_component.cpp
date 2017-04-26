@@ -16,14 +16,13 @@
 #include "entity/ga_entity.h"
 
 ga_terrain_component::ga_terrain_component( ga_entity* ent, const char* param_file,
-											ga_camera* cam) : ga_component(ent)
+											ga_camera* cam, bool dynamic) : ga_component(ent, dynamic)
 {
 	// use unlit material for simplicity
 	if (_material == NULL)
 	{
 		_material = new ga_wireframe_material();
 		_material->init();
-		_material->set_color({ 0.3f, 0.3f, 0.3f });
 	}
 
 	// default start at position (0, 0);
@@ -86,12 +85,21 @@ ga_terrain_component::ga_terrain_component( ga_entity* ent, const char* param_fi
 
 	// and finally, generate a heightmap from our parameters
 	_points = new float[_size * _size];
+
+	// initialize the terrain points and mesh if this is a static terrain
+	if (!dynamic)
+	{
+		init();
+	}
+}
+
+void ga_terrain_component::init()
+{
+	// initialize the actual heightmap
 	generate_terrain();
 
-	// use the newly generated _points to setup vbos for drawing
-	setup_vbos();
-
-	// possible implementation for infinite: keep a list of neighbors and generate them as needed
+	// use the newly generated _points to setup vertices for drawing
+	setup_vertices();
 }
 
 void ga_terrain_component::generate_terrain()
@@ -180,11 +188,10 @@ const int ga_terrain_component::get_p(int i)
 	return get_permutation(i - 256);
 }
 
-void ga_terrain_component::setup_vbos()
+void ga_terrain_component::setup_vertices()
 {
 	// setup indices and vertices for drawing
 	int vertex_count = 3 * _size * _size;
-	GLfloat* vertices = new GLfloat[vertex_count];
 
 	std::cout << "vertices " << vertex_count / 3 << std::endl;
 	
@@ -194,31 +201,28 @@ void ga_terrain_component::setup_vbos()
 	{
 		for (int j = 0; j < _size; j++)
 		{
-			ga_vec2f pos = point_to_position(i, j);// +_position;
+			ga_vec2f pos = point_to_position(i, j) + _position;
 			float y = get_point(i, j) * _height - _height / 2.0f;
 
-			vertices[3 * (i + _size * j)] = pos.x;
-			vertices[3 * (i + _size * j) + 1] = y;
-			vertices[3 * (i + _size * j) + 2] = pos.y;
+			_vertices.push_back({ pos.x, y, pos.y });
 		}
 	}
 
 	// assign indices based on position in vertex array
-	_index_count = 6 * (_size - 1) * (_size - 1);
-	GLushort* indices = new GLushort[_index_count];
-	std::cout << "indices " << _index_count << std::endl;
+	int index_count = 6 * (_size - 1) * (_size - 1);
+	std::cout << "indices " << index_count << std::endl;
 
 	int x = 0;
 	int y = 0;
-	for (int i = 0; i < _index_count; i += 6)
+	for (int i = 0; i < index_count; i += 6)
 	{
 		// assign one quad at a time
-		indices[i] = x + _size * y;
-		indices[i + 1] = x + 1 + _size * y;
-		indices[i + 2] = x + 1 + _size * (y + 1);
-		indices[i + 3] = x + 1 + _size * (y + 1);
-		indices[i + 4] = x + _size * (y + 1);
-		indices[i + 5] = x + _size * y;
+		_indices.push_back(x + _size * y);
+		_indices.push_back(x + 1 + _size * y);
+		_indices.push_back(x + 1 + _size * (y + 1));
+		_indices.push_back(x + 1 + _size * (y + 1));
+		_indices.push_back(x + _size * (y + 1));
+		_indices.push_back(x + _size * y);
 
 		// advance coordinates to keep up
 		x = (x + 1);
@@ -228,41 +232,15 @@ void ga_terrain_component::setup_vbos()
 			y++;
 		}
 	}
-
-
-	// and use that data for the arrays
-	glGenVertexArrays(1, &_vao);
-	glBindVertexArray(_vao);
-
-	// only need 2 buffers since we have constant color
-	glGenBuffers(2, _vbos);
-
-	glBindBuffer(GL_ARRAY_BUFFER, _vbos[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * vertex_count, vertices, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(0);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _vbos[1]);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort) * _index_count, indices, GL_STATIC_DRAW);
-
-	glBindVertexArray(0);
-
-	// clean up our temporary arrays
-	delete[] indices;
-	delete[] vertices;
 }
 
 ga_terrain_component::~ga_terrain_component()
 {
-	// delete VBOs
-	glDeleteBuffers(2, _vbos);
-	glDeleteVertexArrays(1, &_vao);
-
 	delete[] _points;
 
 	if (_parent == NULL)
 	{
-		// NOTE need to delete material eventually
+		// TODO need to delete material eventually
 		// delete _material;
 	}
 	// delete neighbor components
@@ -302,6 +280,24 @@ ga_vec2f ga_terrain_component::point_to_position(int x, int y)
 
 void ga_terrain_component::update(ga_frame_params * params)
 {
+
+	// draw the terrain each frame
+	ga_dynamic_drawcall draw;
+	draw._name = "ga_terrain_component";
+	draw._transform = get_entity()->get_transform();
+	draw._draw_mode = GL_TRIANGLES;
+	draw._material = _material;
+	draw._positions = _vertices;
+	draw._indices = _indices;
+	draw._color = { 0.3f, 0.3f, 0.3f };
+
+	while (params->_dynamic_drawcall_lock.test_and_set()) {}
+	params->_dynamic_drawcalls.push_back(draw);
+	params->_dynamic_drawcall_lock.clear(std::memory_order_release);
+}
+
+void ga_terrain_component::late_update(ga_frame_params* params)
+{
 	// get the camera position to determine whether we need to generate new chunks
 	ga_vec3f eye_position = _camera->get_transform().get_translation();
 
@@ -312,43 +308,35 @@ void ga_terrain_component::update(ga_frame_params * params)
 		eye_position.z > _position.y - (_width / 2.0f))
 	{
 		if (_neighbors[0] == NULL) {
-			_neighbors[0] = new ga_terrain_component(get_entity(), _param_file, _camera);
-			_neighbors[0]->_position.x -= _width;
+			_neighbors[0] = new ga_terrain_component(get_entity(), _param_file, _camera, true);
+			_neighbors[0]->_position = { _position.x - _width, _position.y };
 			_neighbors[0]->_parent = this;
 			_neighbors[0]->_neighbors[1] = this;
+			_neighbors[0]->init();
 		}
 		if (_neighbors[1] == NULL) {
-			_neighbors[1] = new ga_terrain_component(get_entity(), _param_file, _camera);
-			_neighbors[1]->_position.x += _width;
+			_neighbors[1] = new ga_terrain_component(get_entity(), _param_file, _camera, true);
+			_neighbors[1]->_position = { _position.x + _width, _position.y };
 			_neighbors[1]->_parent = this;
 			_neighbors[1]->_neighbors[0] = this;
+			_neighbors[1]->init();
 		}
 		if (_neighbors[2] == NULL) {
-			_neighbors[2] = new ga_terrain_component(get_entity(), _param_file, _camera);
-			_neighbors[2]->_position.y -= _width;
+			_neighbors[2] = new ga_terrain_component(get_entity(), _param_file, _camera, true);
+			_neighbors[2]->_position = { _position.x, _position.y - _width };
 			_neighbors[2]->_parent = this;
 			_neighbors[2]->_neighbors[3] = this;
+			_neighbors[2]->init();
 		}
 		if (_neighbors[3] == NULL) {
-			_neighbors[3] = new ga_terrain_component(get_entity(), _param_file, _camera);
-			_neighbors[3]->_position.y += _width;
+			_neighbors[3] = new ga_terrain_component(get_entity(), _param_file, _camera, true);
+			_neighbors[3]->_position = { _position.x, _position.y + _width };
+			_neighbors[2]->_parent = this;
 			_neighbors[3]->_parent = this;
 			_neighbors[3]->_neighbors[2] = this;
+			_neighbors[3]->init();
 		}
 	}
-
-	// draw the terrain each frame
-	ga_static_drawcall draw;
-	draw._name = "ga_terrain_component";
-	draw._vao = _vao;
-	draw._index_count = _index_count;
-	draw._transform = get_entity()->get_transform();
-	draw._draw_mode = GL_TRIANGLES;
-	draw._material = _material;
-
-	while (params->_static_drawcall_lock.test_and_set(std::memory_order_acquire)) {}
-	params->_static_drawcalls.push_back(draw);
-	params->_static_drawcall_lock.clear(std::memory_order_release);
 }
 
 // initialize the static material to null

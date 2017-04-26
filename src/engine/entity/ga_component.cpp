@@ -11,9 +11,16 @@
 
 #include "ga_entity.h"
 
-ga_component::ga_component(ga_entity* ent) : _entity(ent)
+ga_component::ga_component(ga_entity* ent, bool dynamic) : _entity(ent)
 {
-	_entity->add_component(this);
+	if (dynamic)
+	{
+		_entity->dynamic_add_component(this);
+	}
+	else
+	{
+		_entity->add_component(this);
+	}
 }
 
 ga_component::~ga_component()

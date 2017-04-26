@@ -20,7 +20,7 @@ class ga_component
 {
 public:
 	ga_component() = delete;
-	ga_component(class ga_entity* ent);
+	ga_component(class ga_entity* ent, bool dynamic = false);
 	virtual ~ga_component();
 
 	virtual void update(struct ga_frame_params* params);
