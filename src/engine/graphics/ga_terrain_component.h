@@ -2,7 +2,7 @@
 #include "entity/ga_component.h"
 #include "framework/ga_camera.h"
 
-#include <random>
+#include <unordered_map>
 
 class ga_terrain_component : public ga_component
 {
@@ -17,6 +17,8 @@ public:
 
 private:
 	static class ga_wireframe_material* _material;
+
+	static std::unordered_map<int, ga_terrain_component*> _pieces;
 
 	// data and helper for actually drawing the terrain
 	void setup_vertices();
@@ -37,7 +39,9 @@ private:
 
 	// storage for surrounding terrain tiles
 	ga_terrain_component* _parent;
-	ga_terrain_component* _neighbors[4];
+	ga_terrain_component* _neighbors[8];
+
+	void build_neighbors(ga_vec3f eye_positiot);
 
 	// some helper getters/setters
 	float get_point(int x, int y);

@@ -29,6 +29,11 @@ void ga_entity::dynamic_add_component(ga_component* comp)
 	_to_add_dynamic.push_back(comp);
 }
 
+void ga_entity::dynamic_remove_component(ga_component* comp)
+{
+	_to_remove_dynamic.push_back(comp);
+}
+
 void ga_entity::update(ga_frame_params* params)
 {
 	// include components added in the last frame
@@ -37,6 +42,26 @@ void ga_entity::update(ga_frame_params* params)
 		_components.push_back(c);
 	}
 	_to_add_dynamic.clear();
+
+	// remove components as needed
+	for (auto& c : _to_remove_dynamic)
+	{
+		auto i = _components.begin();
+		while( i != _components.end())
+		{
+			if (*i == c)
+			{
+				auto comp = *i;
+				i = _components.erase(i);
+				delete comp;
+			}
+			else
+			{
+				i++;
+			}
+		}
+	}
+	_to_remove_dynamic.clear();
 
 	for (auto& c : _components)
 	{

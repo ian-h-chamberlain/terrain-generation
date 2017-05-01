@@ -1,4 +1,4 @@
-width 10
+width 20
 detail 2
 height 3
-radius 60
+radius 50
