@@ -100,7 +100,11 @@ void ga_terrain_component::init()
 	setup_vertices();
 
 	// add this to the list of active terrain pieces
-	_pieces.insert(std::make_pair((int) _position.x ^ (int) _position.y, this));
+	std::pair<int, int> pos = std::make_pair(
+		(int) _position.x / (int) _width,
+		(int) _position.y / (int) _width
+	);
+	_pieces[pos] = this;
 }
 
 void ga_terrain_component::generate_terrain()
@@ -293,46 +297,70 @@ void ga_terrain_component::late_update(ga_frame_params* params)
 	// get the camera position to determine whether we need to generate new chunks
 	ga_vec3f eye_position = _camera->get_transform().get_translation();
 
-	// compare the eye position to each piece of terrain
-	for (auto itr = _pieces.begin(); itr != _pieces.end(); itr++)
-	{
-		ga_vec2f pos = (itr->second)->_position;
-		float distance = sqrtf(powf(pos.x - eye_position.x, 2) + powf(pos.y - eye_position.z, 2));
-		if (distance > _radius)
-		{
-			// delete the pieces of terrain that are too far away
-			get_entity()->dynamic_remove_component(itr->second);
-		}
-	}
+	// add new terrain as needed 
+	std::set<std::pair<int, int> > to_generate = build_neighbors(eye_position);
 
-	build_neighbors(eye_position);
+	auto itr = to_generate.begin();
+	while (itr != to_generate.end())
+	{
+		ga_terrain_component* neighbor = new ga_terrain_component(
+			get_entity(), _param_file, _camera, true
+		);
+		neighbor->_position.x = itr->first * _width;
+		neighbor->_position.y = itr->second * _width;
+		neighbor->init();
+		itr++;
+	}
 }
 
-void ga_terrain_component::build_neighbors(ga_vec3f eye_position)
+std::set<std::pair<int, int> > ga_terrain_component::build_neighbors(ga_vec3f eye_position)
 {
-	int x_lower = (int)(eye_position.x - _radius) % (int)_width;
-	int x_upper = (int)(eye_position.x + _radius) % (int)_width;
-	int y_lower = (int)(eye_position.z - _radius) % (int)_width;
-	int y_upper = (int)(eye_position.z + _radius) % (int)_width;
+	// calculate the center position
+	int chunk_x = (int) eye_position.x / (int) _width;
+	int chunk_z = (int) eye_position.z / (int) _width;
+	
+	std::set<std::pair<int, int> > result;
 
-	for (int i = x_lower; i < x_upper; i++)
+	for (int i = -_radius; i < _radius; i++)
 	{
-		for (int j = y_lower; j < y_upper; j++)
+		for (int j = -_radius; j < _radius; j++)
 		{
-			if (_pieces.find(i ^ j) == _pieces.end())
+			std::pair<int, int> new_pos = std::make_pair(chunk_x + i, chunk_z + j);
+			if (i * i + j * j < _radius * _radius &&
+				_pieces.find(new_pos) == _pieces.end())
 			{
-				ga_terrain_component* neighbor = new ga_terrain_component(
-					get_entity(), _param_file, _camera, true);
-
-				neighbor->_position.x = i * _width + _position.x;
-				neighbor->_position.y = j * _width + _position.y;
-
-				neighbor->init();
+				std::cout << "generating chunk " << new_pos.first << ","
+					<< new_pos.second << std::endl;
+				result.insert(new_pos);
 			}
 		}
 	}
+
+	// remove chunks too far away
+	auto itr = _pieces.begin();
+	while (itr != _pieces.end())
+	{
+		int x = itr->first.first - chunk_x;
+		int y = itr->first.second - chunk_z;
+		if (x * x + y * y > _radius * _radius)
+		{
+			// delete the pieces of terrain that are too far away
+			if (result.find(itr->first) != result.end())
+			{
+				result.erase(itr->first);
+			}
+			get_entity()->dynamic_remove_component(itr->second);
+			itr = _pieces.erase(itr);
+		}
+		else
+		{
+			itr++;
+		}
+	}
+
+	return result;
 }
 
 // initialize the static material to null
 ga_wireframe_material* ga_terrain_component::_material = NULL;
-std::unordered_map<int, ga_terrain_component*> ga_terrain_component::_pieces;
+std::map<std::pair<int, int>, ga_terrain_component*> ga_terrain_component::_pieces;
