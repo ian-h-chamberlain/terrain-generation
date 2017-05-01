@@ -198,9 +198,6 @@ void ga_terrain_component::setup_vertices()
 	// setup indices and vertices for drawing
 	int vertex_count = 3 * _size * _size;
 
-	std::cout << "vertices " << vertex_count / 3 << std::endl;
-	
-	std::cout << "position: (" << _position.x << ", " << _position.y << ")" << std::endl;
 	// calculate x, y, z from _points data
 	for (int i = 0; i < _size; i++)
 	{
@@ -215,7 +212,6 @@ void ga_terrain_component::setup_vertices()
 
 	// assign indices based on position in vertex array
 	int index_count = 6 * (_size - 1) * (_size - 1);
-	std::cout << "indices " << index_count << std::endl;
 
 	int x = 0;
 	int y = 0;
@@ -329,8 +325,6 @@ std::set<std::pair<int, int> > ga_terrain_component::build_neighbors(ga_vec3f ey
 			if (i * i + j * j < _radius * _radius &&
 				_pieces.find(new_pos) == _pieces.end())
 			{
-				std::cout << "generating chunk " << new_pos.first << ","
-					<< new_pos.second << std::endl;
 				result.insert(new_pos);
 			}
 		}
