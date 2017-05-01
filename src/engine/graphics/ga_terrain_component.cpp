@@ -32,10 +32,6 @@ ga_terrain_component::ga_terrain_component( ga_entity* ent, const char* param_fi
 
 	// initialize neighbors data to null
 	_parent = NULL;
-	for (int i = 0; i < 4; i++)
-	{
-		_neighbors[i] = NULL;
-	}
 
 	// load the input file
 	extern char g_root_path[256];

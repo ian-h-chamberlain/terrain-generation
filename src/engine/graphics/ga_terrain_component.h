@@ -40,7 +40,6 @@ private:
 
 	// storage for surrounding terrain tiles
 	ga_terrain_component* _parent;
-	ga_terrain_component* _neighbors[8];
 
 	std::set<std::pair<int, int> > build_neighbors(ga_vec3f eye_position);
 
